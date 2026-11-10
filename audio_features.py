@@ -10,15 +10,21 @@ def fake_light_curve():
     return df
 
 
+def flux_to_drop(df):
+    df['drop'] = (1 - df['flux'])* 1000 
+    df['drop'] = df['drop'].clip(upper=24)
+    return df
+
 
 def main():
     df = fake_light_curve()
-    plt.plot(df['time'], df['flux'])
+    df = flux_to_drop(df)                
+    plt.plot(df['time'], df['drop'])     
     plt.xlabel('Time (days)')
-    plt.ylabel('Brightness')
+    plt.ylabel('Pitch drop(semitones)')
     plt.show()
 
 
 if __name__ == '__main__':
     main()
-
+    
