@@ -39,17 +39,47 @@ def count_dips(df):
         previous = value
     return count
 
+def label_dips(df):
+    count = 0
+    previous = False
+    labels = []
+    for value in df['in_dip']:
+        if value > previous:
+            count +=1
+        if value == True:
+            labels.append(count)
+        else:
+            labels.append(0)
+
+        previous = value
+    df['dip_id'] = labels
+    return df
+
+def measure_dips(df):
+    hours_per_row = 0.49
+    in_dips = df[df['in_dip']]
+    groups = in_dips.groupby('dip_id')
+    depth = groups['drop'].max()
+    duration = groups.size() * hours_per_row
+    return pd.DataFrame({'depth': depth, "duration_in_hours": duration})
+    
+
+
 
 def main():
     df = fake_light_curve()
     df = flux_to_drop(df)     
-    df = mark_dips(df)           
+    df = mark_dips(df)        
+    df = label_dips(df)   
     print(f"Number of dips: {count_dips(df)}")
     print(f"Rows in dips: {df['in_dip'].sum()}")
+    print(set(df[df['in_dip']]['dip_id']))
+    print(measure_dips(df))
     plt.plot(df['time'], df['drop'])     
     plt.xlabel('Time (days)')
     plt.ylabel('Pitch drop(semitones)')
     plt.show()
+   
     
 
 
