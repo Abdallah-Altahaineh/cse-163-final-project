@@ -15,17 +15,26 @@ def fake_light_curve():
     df = pd.DataFrame({'time': time, 'flux': flux})
     for start in range(10, 90, 10):
         df.loc[(df['time'] > start) & (df['time'] < start + 0.25), 'flux'] = 0.995
+
+    np.random.seed(0)
+    df['flux'] = df['flux'] + np.random.normal(0, 0.0001, len(df))
     return df
 
 
 def flux_to_drop(df):
     df['drop'] = (1 - df['flux'])* 1000 
-    df['drop'] = df['drop'].clip(upper=24)
+    df['drop'] = (df['drop'].clip(upper=24))
     return df
 
 
 def mark_dips(df):
-    df['in_dip'] = df['drop'] > 1
+    # Converting median absolute deviation (MAD) to standard deviation for ideal bell curve noise 1/(.6745)
+    MAD_TO_STD = 1.4826
+    dip_threshold = 5
+    middle = df['drop'].median()
+    noise = (df['drop'] - middle).abs().median() * MAD_TO_STD
+    df['in_dip'] = df['drop'] > middle + dip_threshold * noise
+
     return df
 
 
@@ -64,10 +73,23 @@ def measure_dips(df):
     return pd.DataFrame({'depth': depth, "duration_in_hours": duration})
     
 
+def summarize_dips(df, dips):
+    noise = df[df['dip_id'] == 0]['drop'].std()
+    return {
+        'num_dips': len(dips),
+        'depth': float(dips['depth'].mean()),
+        'duration_hr': float(dips['duration_in_hours'].mean()),
+    }
+
+
+def load_star(path):
+    df = pd.read_csv(path)
+    df = df.rename(columns={'time_days': 'time', 'brightness': 'flux'})
+    return df
 
 
 def main():
-    df = fake_light_curve()
+    df = load_star('data/lightcurves/clean/4742414.csv')
     df = flux_to_drop(df)     
     df = mark_dips(df)        
     df = label_dips(df)   
@@ -75,11 +97,12 @@ def main():
     print(f"Rows in dips: {df['in_dip'].sum()}")
     print(set(df[df['in_dip']]['dip_id']))
     print(measure_dips(df))
+    print(summarize_dips(df, measure_dips(df)))
     plt.plot(df['time'], df['drop'])     
     plt.xlabel('Time (days)')
     plt.ylabel('Pitch drop(semitones)')
-    plt.show()
-   
+    plt.savefig('star_4742414.png')  
+    plt.show()   
     
 
 
