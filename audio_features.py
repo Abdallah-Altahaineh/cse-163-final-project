@@ -112,6 +112,7 @@ def main():
     print(labeled)
     print(len(labeled))
     print(labeled['koi_disposition'].value_counts())
+    labeled.to_csv('audio_features.csv', index=False)
 
   
     
