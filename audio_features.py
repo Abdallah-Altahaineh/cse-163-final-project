@@ -106,7 +106,13 @@ def load_star(path):
 
 def main():
     features = build_features_table('data/lightcurves/clean')
-    print(features)
+    stars = pd.read_csv('data/stars.csv')
+    labels = stars[['kepid', 'koi_disposition']]
+    labeled = features.merge(labels, on='kepid')
+    print(labeled)
+    print(len(labeled))
+    print(labeled['koi_disposition'].value_counts())
+
   
     
 
