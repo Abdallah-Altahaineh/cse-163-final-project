@@ -4,7 +4,7 @@ Turns a star's brightness into pitch drops and measures each dip
 (how many, how deep, how long, what shape) so we can compare
 confirmed planets and false positives by sound.
 """
-
+import os
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -71,6 +71,20 @@ def measure_dips(df):
     depth = groups['drop'].max()
     duration = groups.size() * hours_per_row
     return pd.DataFrame({'depth': depth, "duration_in_hours": duration})
+
+def build_features_table(folder):
+    rows = []
+    for name in os.listdir(folder):
+        path = os.path.join(folder, name)
+        df = load_star(path)
+        df = flux_to_drop(df)
+        df = mark_dips(df)
+        df = label_dips(df)
+        summary = summarize_dips(df, measure_dips(df))
+        summary['kepid'] = int(name[:-4])
+        rows.append(summary)
+    return pd.DataFrame(rows)
+
     
 
 def summarize_dips(df, dips):
@@ -79,6 +93,8 @@ def summarize_dips(df, dips):
         'num_dips': len(dips),
         'depth': float(dips['depth'].mean()),
         'duration_hr': float(dips['duration_in_hours'].mean()),
+        'noise': float(noise),
+        'ratio': float(dips['depth'].mean() / noise),
     }
 
 
@@ -89,20 +105,9 @@ def load_star(path):
 
 
 def main():
-    df = load_star('data/lightcurves/clean/4742414.csv')
-    df = flux_to_drop(df)     
-    df = mark_dips(df)        
-    df = label_dips(df)   
-    print(f"Number of dips: {count_dips(df)}")
-    print(f"Rows in dips: {df['in_dip'].sum()}")
-    print(set(df[df['in_dip']]['dip_id']))
-    print(measure_dips(df))
-    print(summarize_dips(df, measure_dips(df)))
-    plt.plot(df['time'], df['drop'])     
-    plt.xlabel('Time (days)')
-    plt.ylabel('Pitch drop(semitones)')
-    plt.savefig('star_4742414.png')  
-    plt.show()   
+    features = build_features_table('data/lightcurves/clean')
+    print(features)
+  
     
 
 
