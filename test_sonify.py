@@ -18,8 +18,9 @@ import pandas as pd
 from lightcurves import (count_missing, load_light_curve,
                          seven_number_summary, window_around_dip)
 from sonify import (AMPLITUDE, BASE_HZ, brightness_to_hz,
-                    brightness_to_semitones, dip_center, fold_light_curve,
-                    pitch_stats, semitones_to_hz, synthesize)
+                    brightness_to_semitones, clearest_confirmed_star,
+                    dip_center, fold_light_curve, pitch_stats,
+                    semitones_to_hz, synthesize)
 
 SAMPLE_PATH = Path("tests") / "sample_lightcurve.csv"
 
@@ -170,6 +171,19 @@ def test_pitch_stats_too_small() -> None:
     assert not pitch_stats(folded)["audible"]
 
 
+def test_clearest_confirmed_star() -> None:
+    """
+    Star 2 has the highest dip_to_noise overall but is a false positive,
+    so the clearest confirmed planet is star 3.
+    """
+    sonified = pd.DataFrame({"star_id": [1, 2, 3],
+                             "dip_to_noise": [5.0, 100.0, 20.0]})
+    stats = pd.DataFrame({"kepid": [1, 2, 3],
+                          "koi_disposition": ["CONFIRMED", "FALSE POSITIVE",
+                                              "CONFIRMED"]})
+    assert clearest_confirmed_star(sonified, stats) == 3
+
+
 def main() -> None:
     """
     Runs every test in this file.
@@ -185,6 +199,7 @@ def main() -> None:
     test_synthesize()
     test_pitch_stats()
     test_pitch_stats_too_small()
+    test_clearest_confirmed_star()
     print("All tests passed!")
 
 

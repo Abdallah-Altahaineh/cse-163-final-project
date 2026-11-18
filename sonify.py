@@ -25,7 +25,8 @@ import pandas as pd
 import seaborn as sns
 import soundfile as sf
 
-from lightcurves import CLEAN_DIR, DATA_DIR, FIGURES_DIR, load_light_curve
+from lightcurves import (CLEAN_DIR, DATA_DIR, FIGURES_DIR, STATS_PATH,
+                         load_light_curve)
 
 STARS_PATH = DATA_DIR / "stars.csv"
 OUTPUT_DIR = Path("output")
@@ -201,6 +202,19 @@ def plot_pitch_curve(folded: pd.DataFrame, star_id: int, path: Path) -> None:
     plt.close(fig)
 
 
+def clearest_confirmed_star(sonified: pd.DataFrame,
+                            stats: pd.DataFrame) -> int:
+    """
+    Returns the ID of the confirmed planet whose dip stands out the most
+    from its noise (the highest dip_to_noise), which makes the clearest
+    example plot. stats must have the columns kepid and koi_disposition.
+    """
+    merged = sonified.merge(stats[["kepid", "koi_disposition"]],
+                            left_on="star_id", right_on="kepid")
+    confirmed = merged[merged["koi_disposition"] == "CONFIRMED"]
+    return int(confirmed.sort_values("dip_to_noise").iloc[-1]["star_id"])
+
+
 def sonify_star(df: pd.DataFrame, period_days: float) -> tuple:
     """
     Folds one star's light curve, converts it to pitch, and returns the
@@ -243,8 +257,7 @@ def main() -> None:
     print(sonified.describe())
     print("Audible:", int(sonified["audible"].sum()), "of", len(sonified))
 
-    best = sonified.sort_values("pitch_drop_semitones").iloc[-1]
-    star_id = int(best["star_id"])
+    star_id = clearest_confirmed_star(sonified, pd.read_csv(STATS_PATH))
     path = FIGURES_DIR / f"pitch_curve_{star_id}.png"
     plot_pitch_curve(curves[star_id], star_id, path)
     print("Saved pitch curve plot to", path)
