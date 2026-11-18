@@ -46,8 +46,9 @@ FADE_S = 0.05
 OUT_OF_TRANSIT_PHASE = 0.1
 
 # Smallest pitch change, in cents (hundredths of a semitone), that we
-# treat as audible. Cite the hearing threshold source in the report.
-JND_CENTS = 10.0
+# treat as audible. For pure tones below 500 Hz the just-noticeable
+# difference is about 3 Hz, which is about 12 cents at 440 Hz.
+JND_CENTS = 12.0
 
 ID_COLUMNS = ("star_id", "kepid")
 PERIOD_COLUMNS = ("period_days", "koi_period")
