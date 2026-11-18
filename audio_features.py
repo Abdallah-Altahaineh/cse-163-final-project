@@ -4,12 +4,10 @@ Turns a star's brightness into pitch drops and measures each dip
 (how many, how deep, how long, what shape) so we can compare
 confirmed planets and false positives by sound.
 """
-import os
-import numpy as np
-import matplotlib.pyplot as plt
-import pandas as pd
-from sonify import brightness_to_hz, fold_light_curve, load_periods, pitch_stats
 
+import pandas as pd
+from sonify import (brightness_to_hz, fold_light_curve, load_periods,
+                    pitch_stats)
 
 def star_features(df: pd.DataFrame, period_days: float) -> dict:
     """Folds one star's light curve and returns its pitch statistics."""
