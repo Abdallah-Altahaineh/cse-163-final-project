@@ -1,5 +1,5 @@
 """
-Hamsa Ali: data pipeline and EDA for the Kepler KOI cumulative table.
+Hamsa: data pipeline and EDA for the Kepler KOI cumulative table.
 
 Loads the NASA Exoplanet Archive Kepler cumulative table, keeps only
 CONFIRMED and FALSE POSITIVE rows, reports size / missingness /
