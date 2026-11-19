@@ -6,8 +6,10 @@ confirmed planets and false positives by sound.
 """
 import os
 import pandas as pd
-from sonify import (brightness_to_hz, fold_light_curve, load_periods,
+from sonify import (N_BINS, brightness_to_hz, fold_light_curve, load_periods,
                     pitch_stats)
+min_dip_to_noise = 5
+min_transit_bins = 15
 
 
 def dip_shape(folded: pd.DataFrame, period_days: float) -> dict:
@@ -26,11 +28,22 @@ def dip_shape(folded: pd.DataFrame, period_days: float) -> dict:
 
 
 def star_features(df: pd.DataFrame, period_days: float) -> dict:
-    """Folds one star's light curve and returns its pitch statistics."""
+    """
+    Folds one star's light curve and returns its pitch statistics.
+    Duration and flatness are set to NaN when dip is below a minimum
+    threshold and flatness is also set to NaN when below min threshold
+    of slices to measure the shape
+    """
     folded = fold_light_curve(df, period_days)
     folded['pitch_hz'] = brightness_to_hz(folded['brightness'])
     stats = pitch_stats(folded)
-    stats.update(dip_shape(folded, period_days))
+    shape = dip_shape(folded, period_days)
+    transit_bins = shape['duration_hr'] / (period_days * 24) * N_BINS
+    if stats['dip_to_noise'] < min_dip_to_noise:
+        shape = {'duration_hr': float('nan'), 'flatness': float('nan')}
+    elif transit_bins < min_transit_bins:
+        shape['flatness'] = float('nan')
+    stats.update(shape)
     return stats
 
 
