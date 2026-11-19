@@ -20,7 +20,7 @@ from lightcurves import (count_missing, load_light_curve,
 from sonify import (AMPLITUDE, BASE_HZ, brightness_to_hz,
                     brightness_to_semitones, clearest_confirmed_star,
                     dip_center, fold_light_curve, pitch_stats,
-                    semitones_to_hz, synthesize)
+                    semitones_to_hz, synthesize, transit_center)
 
 SAMPLE_PATH = Path("tests") / "sample_lightcurve.csv"
 
@@ -71,6 +71,36 @@ def test_window_around_dip() -> None:
     assert window["time_days"].min() > 3.9
     assert window["time_days"].max() < 6.1
     assert window["brightness"].min() == 0.99
+
+
+def test_window_around_given_center() -> None:
+    """
+    When a center time is given, the window is built around it even if
+    the lowest point is somewhere else.
+    """
+    times = np.arange(0, 10, 0.1)
+    brightness = np.where(np.abs(times - 5) < 0.25, 0.99, 1.0)
+    df = pd.DataFrame({"time_days": times, "brightness": brightness})
+    window = window_around_dip(df, days=1.0, center=2.0)
+    assert window["time_days"].min() > 0.9
+    assert window["time_days"].max() < 3.1
+    assert window["brightness"].min() == 1.0
+
+
+def test_transit_center() -> None:
+    """
+    A star with period 2 days that dims between phase 0.3 and 0.35 of
+    each orbit has transits at about 0.65, 2.65, 4.65 and so on. With
+    data from day 0 to day 10, the transit closest to the middle is the
+    one near day 4.65.
+    """
+    times = np.arange(0, 10, 0.001)
+    phase = (times % 2.0) / 2.0
+    brightness = np.where((phase >= 0.3) & (phase < 0.35), 0.99, 1.0)
+    df = pd.DataFrame({"time_days": times, "brightness": brightness})
+    center = transit_center(df, 2.0, n_bins=100)
+    assert 4.55 < center < 4.75
+    assert close(brightness[int(center * 1000)], 0.99)
 
 
 def test_dip_center() -> None:
@@ -191,6 +221,8 @@ def main() -> None:
     test_count_missing()
     test_seven_number_summary()
     test_window_around_dip()
+    test_window_around_given_center()
+    test_transit_center()
     test_dip_center()
     test_brightness_to_semitones()
     test_semitones_to_hz()

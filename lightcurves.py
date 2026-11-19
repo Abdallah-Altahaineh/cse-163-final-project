@@ -4,13 +4,15 @@ CSE 163 Final Project
 
 Exploratory data analysis of the Kepler light curves. Loads the raw and
 cleaned light curves that the data pipeline saved, counts missing data,
-summarizes the brightness measurements, and plots one light curve with
-a visible transit dip.
+and summarizes the brightness measurements. The plotting function here
+is used by sonify.py, which knows each planet's orbital period and so
+can center the plot on a real transit.
 
 Run from the top of the repository: python lightcurves.py
 """
 
 from pathlib import Path
+from typing import Optional
 
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -71,35 +73,30 @@ def seven_number_summary(df: pd.DataFrame, columns: list) -> pd.DataFrame:
     return df[columns].describe().drop("count")
 
 
-def deepest_confirmed_star(stats: pd.DataFrame) -> int:
+def window_around_dip(df: pd.DataFrame, days: float = DAYS_AROUND_DIP,
+                      center: Optional[float] = None) -> pd.DataFrame:
     """
-    Returns the Kepler ID of the confirmed planet whose star reaches the
-    lowest brightness, which makes its transit dip the easiest to see.
+    Returns the rows within the given number of days of center, the time
+    of a transit. If center is not given, the light curve's lowest point
+    is used instead, found with a rolling median so a single noisy
+    measurement does not count as the dip.
     """
-    confirmed = stats[stats["koi_disposition"] == "CONFIRMED"]
-    return int(confirmed.sort_values("flux_min").iloc[0]["kepid"])
-
-
-def window_around_dip(df: pd.DataFrame,
-                      days: float = DAYS_AROUND_DIP) -> pd.DataFrame:
-    """
-    Returns the rows within the given number of days of the light
-    curve's lowest point. A rolling median is used to find that point,
-    so a single noisy measurement does not count as the dip.
-    """
-    smooth = df["brightness"].rolling(5, center=True).median()
-    center = df.loc[smooth.idxmin(), "time_days"]
+    if center is None:
+        smooth = df["brightness"].rolling(5, center=True).median()
+        center = df.loc[smooth.idxmin(), "time_days"]
     in_window = (df["time_days"] > center - days) & \
         (df["time_days"] < center + days)
     return df[in_window]
 
 
-def plot_light_curve(df: pd.DataFrame, star_id: int, path: Path) -> None:
+def plot_light_curve(df: pd.DataFrame, star_id: int, path: Path,
+                     center: Optional[float] = None) -> None:
     """
-    Plots brightness over time around the deepest transit dip of one
-    star and saves the plot to the given path.
+    Plots brightness over the days around one transit of one star and
+    saves the plot to the given path. center is the time of the transit;
+    if it is not given, the light curve's lowest point is used.
     """
-    window = window_around_dip(df)
+    window = window_around_dip(df, center=center)
     fig, ax = plt.subplots(figsize=(8, 4))
     sns.lineplot(data=window, x="time_days", y="brightness", ax=ax)
     ax.set_title(f"Light curve of Kepler star {star_id} during a transit")
@@ -112,8 +109,7 @@ def plot_light_curve(df: pd.DataFrame, star_id: int, path: Path) -> None:
 
 def main() -> None:
     """
-    Prints the size, missing data and summaries of the light curves and
-    saves a plot of one light curve with a transit dip.
+    Prints the size, missing data and summaries of the light curves.
     """
     clean = load_all(CLEAN_DIR)
     raw = load_all(RAW_DIR)
@@ -142,14 +138,6 @@ def main() -> None:
 
     print("Stars by disposition:")
     print(stats["koi_disposition"].value_counts())
-
-    FIGURES_DIR.mkdir(parents=True, exist_ok=True)
-    star_id = deepest_confirmed_star(stats)
-    star = clean[clean["star_id"] == star_id]
-    path = FIGURES_DIR / f"light_curve_{star_id}.png"
-    plot_light_curve(star, star_id, path)
-    print()
-    print("Saved light curve plot to", path)
 
 
 if __name__ == "__main__":

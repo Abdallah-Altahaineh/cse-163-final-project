@@ -10,9 +10,10 @@ brightness is mapped to pitch:
 - every 0.1% the star dims lowers the pitch by 1 semitone
 - the change is capped at 24 semitones (two octaves)
 
-Writes one WAV file per star, a table of pitch measurements for the
-audio feature analysis, and a plot of one star's light curve next to
-its pitch curve.
+Writes one WAV file per star and a table of pitch measurements for the
+audio feature analysis. For the confirmed planet with the clearest dip,
+it also saves a plot of one transit in its light curve and a plot of
+its folded light curve next to its pitch curve.
 
 Run from the top of the repository: python sonify.py
 """
@@ -26,7 +27,7 @@ import seaborn as sns
 import soundfile as sf
 
 from lightcurves import (CLEAN_DIR, DATA_DIR, FIGURES_DIR, STATS_PATH,
-                         load_light_curve)
+                         load_light_curve, plot_light_curve)
 
 STARS_PATH = DATA_DIR / "stars.csv"
 OUTPUT_DIR = Path("output")
@@ -39,6 +40,7 @@ SEMITONES_PER_UNIT = 1000.0
 MAX_SEMITONES = 24.0
 N_BINS = 2000
 SMOOTH_BINS = 5
+TRANSIT_WINDOW_DAYS = 0.1
 DURATION_S = 10.0
 SAMPLE_RATE = 22050
 AMPLITUDE = 0.3
@@ -89,16 +91,15 @@ def dip_center(values: np.ndarray) -> int:
     return int(round(np.flatnonzero(values < midpoint).mean()))
 
 
-def fold_light_curve(df: pd.DataFrame, period_days: float,
-                     n_bins: int = N_BINS) -> pd.DataFrame:
+def phase_bins(df: pd.DataFrame, period_days: float,
+               n_bins: int = N_BINS) -> np.ndarray:
     """
     Folds a light curve on the given orbital period so every transit
     lands on top of the others, then averages brightness into n_bins
-    equal slices of the orbit. Each slice is then averaged with its
-    neighbors (SMOOTH_BINS slices in all) to reduce noise, so random
-    noise is less likely to be mistaken for the dip. The result is
-    shifted so the dip sits in the middle, at phase 0. Returns a
-    DataFrame with the columns phase (from -0.5 to 0.5) and brightness.
+    equal slices of the orbit, starting at phase 0. Each slice is then
+    averaged with its neighbors (SMOOTH_BINS slices in all) to reduce
+    noise, so random noise is less likely to be mistaken for the dip.
+    Returns the smoothed brightness of each slice.
     """
     phase = (df["time_days"] % period_days) / period_days
     bins = np.minimum((phase * n_bins).astype(int), n_bins - 1)
@@ -106,11 +107,48 @@ def fold_light_curve(df: pd.DataFrame, period_days: float,
     binned = binned.reindex(range(n_bins)).interpolate(
         limit_direction="both")
     smooth = binned.rolling(SMOOTH_BINS, center=True, min_periods=1).mean()
-    values = smooth.to_numpy()
+    return smooth.to_numpy()
+
+
+def fold_light_curve(df: pd.DataFrame, period_days: float,
+                     n_bins: int = N_BINS) -> pd.DataFrame:
+    """
+    Folds a light curve on the given orbital period (see phase_bins) and
+    shifts it so the dip sits in the middle, at phase 0. Returns a
+    DataFrame with the columns phase (from -0.5 to 0.5) and brightness.
+    """
+    values = phase_bins(df, period_days, n_bins)
     values = np.roll(values, n_bins // 2 - int(values.argmin()))
     values = np.roll(values, n_bins // 2 - dip_center(values))
     centers = (np.arange(n_bins) + 0.5) / n_bins - 0.5
     return pd.DataFrame({"phase": centers, "brightness": values})
+
+
+def transit_center(df: pd.DataFrame, period_days: float,
+                   n_bins: int = N_BINS) -> float:
+    """
+    Returns the time, in days, of one real transit in the light curve.
+    The folded light curve shows where in each orbit the dip happens.
+    Of all the transits at that point in the data, this keeps the ones
+    with nearly as many measurements around them as the best-covered
+    one (so transits in data gaps are skipped), then picks the one
+    closest to the middle of the data.
+    """
+    values = phase_bins(df, period_days, n_bins)
+    dip_phase = (int(values.argmin()) + 0.5) / n_bins
+    times = np.sort(df["time_days"].to_numpy())
+    first = np.ceil(times[0] / period_days - dip_phase)
+    last = np.floor(times[-1] / period_days - dip_phase)
+    candidates = (np.arange(first, last + 1) + dip_phase) * period_days
+    if len(candidates) == 0:
+        orbit = np.floor(times[0] / period_days)
+        return float((orbit + dip_phase) * period_days)
+    upper = np.searchsorted(times, candidates + TRANSIT_WINDOW_DAYS)
+    lower = np.searchsorted(times, candidates - TRANSIT_WINDOW_DAYS)
+    counts = upper - lower
+    well_covered = candidates[counts >= 0.9 * counts.max()]
+    distance = np.abs(well_covered - np.median(times))
+    return float(well_covered[distance.argmin()])
 
 
 def synthesize(pitch_hz: np.ndarray, duration_s: float = DURATION_S,
@@ -230,7 +268,8 @@ def sonify_star(df: pd.DataFrame, period_days: float) -> tuple:
 def main() -> None:
     """
     Sonifies every cleaned light curve that has a known period, saves the
-    audio files and sonified.csv, and plots one star's pitch curve.
+    audio files and sonified.csv, and plots the light curve and pitch
+    curve of the confirmed planet with the clearest dip.
     """
     periods = load_periods(STARS_PATH)
     AUDIO_DIR.mkdir(parents=True, exist_ok=True)
@@ -262,6 +301,12 @@ def main() -> None:
     path = FIGURES_DIR / f"pitch_curve_{star_id}.png"
     plot_pitch_curve(curves[star_id], star_id, path)
     print("Saved pitch curve plot to", path)
+
+    star = load_light_curve(CLEAN_DIR / f"{star_id}.csv")
+    center = transit_center(star, periods[star_id])
+    path = FIGURES_DIR / f"light_curve_{star_id}.png"
+    plot_light_curve(star, star_id, path, center)
+    print("Saved light curve plot to", path)
 
 
 if __name__ == "__main__":
