@@ -4,16 +4,34 @@ Turns a star's brightness into pitch drops and measures each dip
 (how many, how deep, how long, what shape) so we can compare
 confirmed planets and false positives by sound.
 """
-
+import os
 import pandas as pd
 from sonify import (brightness_to_hz, fold_light_curve, load_periods,
                     pitch_stats)
+
+
+def dip_shape(folded: pd.DataFrame, period_days: float) -> dict:
+    """
+    Measures the folded dip's duration (hours the brightness stays below
+    half the dip's depth) and flatness (average drop inside the dip
+    divided by the deepest drop: about 1 for flat-bottomed, lower for V).
+    """
+    outside = folded[folded['phase'].abs() > 0.1]
+    drop = outside['brightness'].median() - folded['brightness']
+    depth = drop.max()
+    in_dip = (drop >= depth / 2) & (folded['phase'].abs() <= 0.1)
+    duration_hr = in_dip.sum() / len(folded) * period_days * 24
+    flatness = drop[in_dip].mean() / depth
+    return {'duration_hr': duration_hr, 'flatness': flatness}
+
 
 def star_features(df: pd.DataFrame, period_days: float) -> dict:
     """Folds one star's light curve and returns its pitch statistics."""
     folded = fold_light_curve(df, period_days)
     folded['pitch_hz'] = brightness_to_hz(folded['brightness'])
-    return pitch_stats(folded)
+    stats = pitch_stats(folded)
+    stats.update(dip_shape(folded, period_days))
+    return stats
 
 
 def build_features_table(folder: str, periods: dict) -> pd.DataFrame:
@@ -30,7 +48,6 @@ def build_features_table(folder: str, periods: dict) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
-
 def main() -> None:
     """Builds the folded audio feature table with NASA labels."""
     periods = load_periods('data/stars.csv')
@@ -40,10 +57,6 @@ def main() -> None:
     print(labeled)
     labeled.to_csv('audio_features.csv', index=False)
 
-  
-    
-
 
 if __name__ == '__main__':
     main()
-    
