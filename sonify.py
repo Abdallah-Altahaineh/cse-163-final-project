@@ -237,7 +237,7 @@ def plot_pitch_curve(folded: pd.DataFrame, star_id: int, path: Path) -> None:
     bottom.set_ylabel("Pitch (Hz)")
     fig.suptitle(f"Kepler star {star_id}: brightness and pitch")
     fig.tight_layout()
-    fig.savefig(path)
+    fig.savefig(path, dpi=200)
     plt.close(fig)
 
 

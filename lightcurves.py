@@ -103,7 +103,7 @@ def plot_light_curve(df: pd.DataFrame, star_id: int, path: Path,
     ax.set_xlabel("Time (days)")
     ax.set_ylabel("Brightness (1.0 = normal)")
     fig.tight_layout()
-    fig.savefig(path)
+    fig.savefig(path, dpi=200)
     plt.close(fig)
 
 
