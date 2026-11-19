@@ -2,8 +2,6 @@
 Hari - CSE 163 Final Project
 Tests for audio_features.py using fake stars with known answers.
 """
-import os
-
 import numpy as np
 import pandas as pd
 from sonify import load_periods

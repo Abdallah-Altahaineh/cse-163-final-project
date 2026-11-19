@@ -5,9 +5,12 @@ Turns a star's brightness into pitch drops and measures each dip
 confirmed planets and false positives by sound.
 """
 
+import os
+
 import pandas as pd
 from sonify import (brightness_to_hz, fold_light_curve, load_periods,
                     pitch_stats)
+
 
 def star_features(df: pd.DataFrame, period_days: float) -> dict:
     """Folds one star's light curve and returns its pitch statistics."""
@@ -30,7 +33,6 @@ def build_features_table(folder: str, periods: dict) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
-
 def main() -> None:
     """Builds the folded audio feature table with NASA labels."""
     periods = load_periods('data/stars.csv')
@@ -40,10 +42,6 @@ def main() -> None:
     print(labeled)
     labeled.to_csv('audio_features.csv', index=False)
 
-  
-    
-
 
 if __name__ == '__main__':
     main()
-    
